@@ -1,0 +1,1 @@
+{"domain": "svegio.top", "subdomain": ["wic", "math", "mma", "www"]}
