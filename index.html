@@ -1,34 +1,118 @@
----
-layout: default
----
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>Physics Engine</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.14.2/matter.js"></script>
+</head>
+<body>
+<script type="text/javascript">
+    var total_x = 1600,
+        total_y = 600,
+        wall_x = 15,
+        wall_y = 15,
+        init_x = 250,
+        init_y = 360,
+        circle_radius = 20,
+        delta_x = 20,
+        delta_y = 20,
+        gravity = 0.005,
+        elastic_stiffness = 0.05,
+        elastic_length = 250,
+        mouse_stiffness = 0.2,
+        rock_density = 0.004,
+        restitution = 0.9;
 
-<div class="main-post-list hidden">
 
-  <ol class="post-list">
-    {% for post in paginator.posts %}
-    <li>
-      <h2 class="post-list__post-title post-title"><a href="{{ post.url }}" title="访问 {{ post.title }}">{{ post.title }}</a></h2>
-      <p class="excerpt">{{ post.content | strip_html | strip_newlines | truncate: 250 }}&hellip;</p>
-      <div class="post-list__meta">        
-        <time datetime="{{post.date | date: date_to_xmlschema}}" class="post-list__meta--date date">
-          <img src="/images/calendar.png" width="20px" /> 
-          {{ post.date | date: "%F"}}</time> 
-        <div class = "tag-img-icon">
-          <img src="/images/tag-icon.svg" width="20px" /> 
-        </div>
-        <a href="/tags">
-          <div class = "post-list-icon-mate">
-            <span class="post-list__meta--tags-right">{{ post.tags }}</span>
-          </div>
-          <div class = "post-list-small-mate">
-          <a class="btn-border-small" href={{ post.url }}>阅读全文 » </a>
-          </div>
-      </div>
-      <hr class="post-list__divider" />
-    </li>
-    {% endfor %}
-  </ol>
+    var Engine = Matter.Engine,
+        Render = Matter.Render,
+        Runner = Matter.Runner,
+        Composites = Matter.Composites,
+        Events = Matter.Events,
+        Constraint = Matter.Constraint,
+        MouseConstraint = Matter.MouseConstraint,
+        Mouse = Matter.Mouse,
+        World = Matter.World,
+        Bodies = Matter.Bodies;
 
-  {% include pagination.html %}
+    // create engine
+    var engine = Engine.create(),
+        world = engine.world;
+    world.gravity.scale = gravity;
 
-</div>
+    // create renderer
+    var render = Render.create({
+        element: document.body,
+        engine: engine,
+        options: {
+            width: total_x,
+            height: total_y,
+            showAngleIndicator: true,
+            showVelocity: true,
+        }
+    });
+
+    Render.run(render);
+
+    // create runner
+    var runner = Runner.create();
+    Runner.run(runner, engine);
+
+    // add bodies
+    var rockOptions = { density: rock_density, restitution: restitution },
+        rock = Bodies.circle(init_x, init_y, circle_radius, rockOptions),
+        anchor = { x: init_x, y: init_y },
+        elastic = Constraint.create({ 
+            pointA: anchor, 
+            bodyB: rock, 
+            stiffness: elastic_stiffness
+        });
+
+    World.add(engine.world, [rock, elastic]);
+    World.add(world, [
+        // walls
+        Bodies.rectangle(0, 0, wall_x, 2*total_y, { isStatic: true }),
+        Bodies.rectangle(0, 0, 2*total_x, wall_y, { isStatic: true }),
+        Bodies.rectangle(0, 2*total_y-wall_y, 2*total_x, 2*total_y, { isStatic: true }),
+        Bodies.rectangle(2*total_x-wall_x, 0, 2*total_x, 2*total_y, { isStatic: true }),
+    ]);
+
+    var old_rock;
+    Events.on(engine, 'afterUpdate', function() {
+        if (mouseConstraint.mouse.button===-1 && (rock.position.x>init_x+delta_x || rock.position.y<init_y-delta_y)) {
+            old_rock = elastic.bodyB;
+            rock = Bodies.circle(init_x, init_y, circle_radius, rockOptions);
+            World.add(engine.world, rock);
+            elastic.bodyB = rock;
+        }
+        let dist = (anchor.x-rock.position.x)*(anchor.x-rock.position.x) + (anchor.y-rock.position.y)*(anchor.y-rock.position.y);
+        if(dist > elastic_length) elastic.stiffness = 1;
+        else elastic.stiffness = elastic_stiffness;
+    });
+
+    // add mouse control
+    var mouse = Mouse.create(render.canvas),
+        mouseConstraint = MouseConstraint.create(engine, {
+            mouse: mouse,
+            constraint: {
+                stiffness: mouse_stiffness,
+                render: {
+                    visible: false
+                }
+            }
+        });
+
+    World.add(world, mouseConstraint);
+
+    // keep the mouse in sync with rendering
+    render.mouse = mouse;
+
+    // fit the render viewport to the scene
+    Render.lookAt(render, {
+        min: { x: 0, y: 0 },
+        max: { x: total_x, y: total_y }
+    });
+</script>
+</body>
+</html>
